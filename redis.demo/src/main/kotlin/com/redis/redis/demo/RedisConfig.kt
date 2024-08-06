@@ -2,6 +2,8 @@ package com.redis.redis.demo
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.KotlinModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import org.springframework.cache.CacheManager
 import org.springframework.cache.annotation.EnableCaching
@@ -18,31 +20,44 @@ import java.time.Duration
 
 @Configuration
 @EnableCaching
-class RedisConfig {
+class CacheConfig {
 
     @Bean
-    fun cacheManager(redisConnectionFactory: RedisConnectionFactory): CacheManager {
-        val redisCacheConfiguration = RedisCacheConfiguration.defaultCacheConfig()
-            .entryTtl(Duration.ofMinutes(1)) // Set the TTL to 1 minute
-            .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(StringRedisSerializer()))
-            .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(GenericJackson2JsonRedisSerializer()))
+    fun cacheManager(redisConnectionFactory: RedisConnectionFactory): RedisCacheManager {
+        val cacheConfiguration = RedisCacheConfiguration.defaultCacheConfig()
+            .entryTtl(Duration.ofMinutes(1))
+            .serializeValuesWith(
+                RedisSerializationContext.SerializationPair.fromSerializer(GenericJackson2JsonRedisSerializer())
+            )
 
         return RedisCacheManager.builder(redisConnectionFactory)
-            .cacheDefaults(redisCacheConfiguration)
+            .cacheDefaults(cacheConfiguration)
             .build()
     }
+
+}
+
+
+@Configuration
+class RedisConfig(private val objectMapper: ObjectMapper) {
 
     @Bean
     fun redisTemplate(connectionFactory: RedisConnectionFactory): RedisTemplate<String, Any> {
         val template = RedisTemplate<String, Any>()
         template.connectionFactory = connectionFactory
         template.keySerializer = StringRedisSerializer()
-        template.valueSerializer = GenericJackson2JsonRedisSerializer(objectMapper())
+        template.valueSerializer = GenericJackson2JsonRedisSerializer(objectMapper)
         return template
     }
+}
+
+@Configuration
+class JacksonConfig {
 
     @Bean
     fun objectMapper(): ObjectMapper {
-        return ObjectMapper().registerKotlinModule().registerModule(JavaTimeModule())
+        return jacksonObjectMapper().registerModule(
+            KotlinModule.Builder().build()
+        )
     }
 }
